@@ -1,24 +1,20 @@
 # frozen_string_literal: true
 
 require 'mini_magick'
+require 'json'
 
-SQUARE_SIZE = 20
+SQUARE_SIZE = 10
 PATH_IN = 'img/in.jpg'
 PATH_OUT = 'img/out.jpg'
+PATH_SRC_IMAGES = 'img/source_square'
+CACHE_PATH = 'average_colors_cache.json'
 
-def get_average_color(pixels_cut)
-  sum_pixels_line = pixels_cut.map { |a| a.transpose.map(&:sum) }.transpose
-  sum_pixels_line.map { |b| (b.sum.to_f / (pixels_cut.length * pixels_cut[0].length)).to_i }
+def get_average_color(pixels)
+  line_sum = pixels.map { |a| a.transpose.map(&:sum) }.transpose
+  line_sum.map { |b| (b.sum.to_f / (pixels.length * pixels[0].length)).to_i }
 end
 
-@src_average_colors = []
-(0...100).each do |i|
-  image = MiniMagick::Image.open("img/source_square/img_#{i}.jpg")
-  pixels = image.get_pixels
-  @src_average_colors.push(get_average_color(pixels))
-end
-
-def euclidean_distance(color1, color2)
+def get_euclidean_distance(color1, color2)
   sum = 0
   color1.zip(color2).each do |v1, v2|
     component = (v1 - v2)**2
@@ -27,23 +23,34 @@ def euclidean_distance(color1, color2)
   Math.sqrt(sum)
 end
 
-def closest_src_idx(color)
+def get_from_cache(image_name)
+  unless @src_average_colors.key?(image_name)
+    image = MiniMagick::Image.open("#{PATH_SRC_IMAGES}/#{image_name}")
+    @src_average_colors[image_name] = get_average_color(image.get_pixels)
+    File.write(CACHE_PATH, JSON.dump(@src_average_colors))
+  end
+  @src_average_colors[image_name]
+end
+
+def get_closest_image_idx(color)
   differences = []
   (0...100).each do |i|
-    src_color = @src_average_colors[i]
-    euclidean = euclidean_distance(src_color, color)
+    average_color = get_from_cache("img_#{i}.jpg")
+    euclidean = get_euclidean_distance(average_color, color)
     differences.push(euclidean)
   end
   differences.each_with_index.min[1]
 end
 
-def get_closest_image(pixels_cut)
-  average_color = get_average_color(pixels_cut)
-  idx = closest_src_idx(average_color)
-  img = MiniMagick::Image.open("img/source_square/img_#{idx}.jpg")
-  min_side = [pixels_cut[0].length, pixels_cut.length].max
-  img.resize("#{min_side}x#{min_side}")
-  img.crop("#{pixels_cut[0].length}x#{pixels_cut.length}+0+0")
+def get_closest_image(pixels)
+  average_color = get_average_color(pixels)
+  idx = get_closest_image_idx(average_color)
+  img = MiniMagick::Image.open("#{PATH_SRC_IMAGES}/img_#{idx}.jpg")
+
+  long_side = [pixels[0].length, pixels.length].max
+  img.resize("#{long_side}x#{long_side}")
+  img.crop("#{pixels[0].length}x#{pixels.length}+0+0")
+
   img.get_pixels
 end
 
@@ -68,6 +75,9 @@ def photomosaics(pixels)
   end
   pixels
 end
+
+cache_file = File.read(CACHE_PATH)
+@src_average_colors = JSON.parse(File.read(CACHE_PATH))
 
 image = MiniMagick::Image.open(PATH_IN)
 pixels = photomosaics(image.get_pixels)
