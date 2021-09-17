@@ -3,11 +3,13 @@
 require 'mini_magick'
 require 'json'
 
-SQUARE_SIZE = 10
-PATH_IN = 'img/in.jpg'
-PATH_OUT = 'img/out.jpg'
-PATH_SRC_IMAGES = 'img/source_square'
+## Configs
+SQUARE_SIZE = 15
+PATH_IN = 'img/yo3.jpg'
+PATH_OUT = 'img/yo3out.jpg'
 CACHE_PATH = 'average_colors_cache.json'
+
+SRC_SQUARE_FOLDER = 'img/source_square'
 
 def get_average_color(pixels)
   line_sum = pixels.map { |a| a.transpose.map(&:sum) }.transpose
